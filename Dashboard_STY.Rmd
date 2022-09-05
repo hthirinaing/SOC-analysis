@@ -1,0 +1,196 @@
+---
+title: "Soil organic carbon in mangroves of Shwe Thaung Yan Coast"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE, message = FALSE)
+library(flexdashboard)
+library(highcharter)
+library(dplyr)
+library(gt)
+library(htmltools)
+library(viridisLite)
+library(DT)
+library(tmap)
+library(tmaptools)
+library(sp)
+library(sf)
+library(leaflet)
+```
+
+```{r include=FALSE}
+# Importing data
+
+data <-  read.csv("D:/R/Tutorials/data.csv")
+nrow(data)
+
+Depth <- as.factor(data$Depth)
+Time <- as.factor(data$Time)
+```
+
+```{r include=FALSE}
+mu_Cpercent_time <- data %>% group_by(Time) %>% summarise(mu = mean(SOC))
+mu_Cpercent_time
+mu_Cpercent <- data %>% group_by(Time, Depth) %>% summarise(mu = mean(SOC))
+```
+
+```{r}
+# read in shape files
+boundary <- st_read("D:/R/Tutorials/Dashboard/STYgeodata/Export_Output.shp", quiet = T) #project boundary
+
+SOC_2015 <- data %>% filter(Time == '2015') %>% group_by(Station) %>% select(SOC) %>%
+  summarise(SOC = mean(SOC))
+# boundary_2015 <- boundary[1:22, ]
+boundary_2015 <- cbind(boundary[1:28, ], SOC_2015)
+
+
+SOC_2021 <- data %>% filter(Time == '2021') %>% group_by(Station) %>% select(SOC) %>%
+  summarise(SOC = mean(SOC))
+SOC_2021 <- SOC_2021[1:28, ]
+boundary_2021 <- cbind(boundary[1:28, ], SOC_2021)
+
+
+sp <- st_read("D:/R/Tutorials/Dashboard/STYgeodata/STY.shp", quiet = T) #sampling points
+```
+
+
+Overview
+================================================================================
+
+Column {data-width=155}
+-----------------------------------------------------------------------
+
+###
+
+```{r}
+# value box for mean SOC in 2015
+valueBox(value=727.73, icon = "fa-calendar", caption = "Mean SOC in 2015", color = "#fdb863")
+```
+
+###
+```{r}
+valueBox(value=1954.57, icon = "fa-calendar", caption = "Mean SOC in 2021", color = "#8dd3c7")
+
+```
+
+
+Column{data-height=850}
+-----------------------------------------------------------------------
+
+### Summary of data
+
+```{r}
+# Table
+datatable(data, filter = 'top', rownames = FALSE, options = list(pageLength = 50))
+
+```
+
+Geographical Map
+=======================================================================
+
+Column {.tabset}
+-------------------------------------------------
+
+### Geographical Map
+
+```{r}
+# build a thematic map using 'tmap' package for map visualisation
+Inter_Map <- tm_shape(boundary_2015)+
+  tm_polygons("SOC", title="SOC in 2015", style = "pretty", palette = "YlOrBr")+
+  tmap_options(check.and.fix = TRUE)+
+
+tm_shape(boundary_2021)+
+  tm_polygons("SOC", title="SOC in 2021", style = "pretty", palette = "Blues")+
+  tmap_options(check.and.fix = TRUE)+
+
+tm_shape(sp)+ #sampling points
+tm_dots(id = "Name", col="red", size=0.1)+
+tm_text("Name",scale = 0.5,col="#878787")
+#https://rdrr.io/cran/tmap/man/tmap_options.html
+
+Inter_Map <- tmap_leaflet(Inter_Map) %>%
+  leaflet::addProviderTiles(providers$OpenStreetMap, group="OpenStreetMap", 
+          options = providerTileOptions(minZoom = 10, maxZoom = 100)) %>%
+  
+  leaflet::addProviderTiles(providers$Esri.WorldImagery, group="WorldImagery", 
+          options = providerTileOptions(minZoom = 10, maxZoom = 100)) %>%
+  
+  leaflet::setView (lng = 94.466627778, lat =17.074425, zoom = 15) %>%
+  leaflet::hideGroup(c("boundary_2015")) %>%
+  leaflet::addLayersControl(baseGroups = c("OpenStreetMap", "WorldImagery"),
+                            overlayGroups=c("boundary_2015","boundary_2021", "sp"),
+                            position="topleft",
+                            options = layersControlOptions(collapsed = FALSE)) 
+
+Inter_Map
+
+```
+
+
+
+Comparison of SOC
+=======================================================================
+
+
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Comparison of SOC with Time
+```{r}
+
+mu_Cpercent_time %>% hchart(type = 'bar', hcaes(x = Time, y = mu)) %>%
+  hc_add_theme(hc_theme_google()) %>%
+  hc_yAxis(title = list(text = "SOC (t/ha)"))
+
+```
+
+
+
+### Comparison of SOC with Time and Depth
+
+```{r}
+# Comparison of SOC with Time and Depth
+
+mu_Cpercent %>% hchart(type = 'bar', hcaes(x = Depth, y = mu, group = Time, color = Time)) %>%
+  hc_add_theme(hc_theme_google()) %>%
+  hc_yAxis(title = list(text = "SOC (t/ha)"))
+
+```
+
+Column {.tabset}
+-----------------------------------------------------------------------
+
+### Comparing sampling points
+
+```{r}
+# Comparing stations
+data$Station <- as.factor(data$Station)
+
+data %>% hchart(type = 'bar', hcaes(x = Station, y = SOC, group = Time, color = Time)) %>%
+  hc_add_theme(hc_theme_google())%>%
+  hc_yAxis(title = list(text = "SOC (t/ha)"))
+
+```
+
+About {}
+=======================================================================
+
+### About
+
+This [Soil organic carbon in mangroves of Shwe Thaung Yan Coast](https://hthirinaing.github.io/) dashboard is to provide a quick overview of the soil organic carbon (SOC) of the mangrove forests of Shwe Thaung Yan coast in Myanmar. This study seeks to evaluate carbon stock change across six years in the mangroves of Shwe Thaung Yan coastal area, where the initial study conducted in 2015. This dashboard is built in R using Rmarkdown framework.
+
+#### Data
+The input data is obtained from the field sampling and lab analysis.
+
+#### Comments and Queries
+For any question or feedback, you can either open an issue on [SOC-analysis](https://github.com/hthirinaing/SOC-analysis) or contact me on htunthirinaing@gmail.com
+
+
+
+
+
